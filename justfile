@@ -2,6 +2,16 @@
 default:
   @just --list --justfile {{justfile()}}
 
+# Check that all prerequisites are installed
+prereq:
+    @echo "Checking prerequisites..."
+    @just --version
+    @cargo --version
+    @cargo fmt --version
+    @cargo audit --version
+    @cargo clippy --version
+    @cargo nextest --version
+
 # Build the project
 build:
     cargo build
@@ -16,7 +26,7 @@ run *args:
 
 # Run tests
 test:
-    cargo test
+    cargo nextest run
 
 # Check code formatting
 check:
@@ -26,14 +36,15 @@ check:
 fmt:
     cargo fmt
 
-# Run clippy linter
-clippy:
+# Run linting (clippy and audit)
+lint:
     cargo clippy
+    cargo audit
 
 # Clean build artifacts
 clean:
     cargo clean
-    rm result >/dev/null 2>&1 || true
+    @rm result >/dev/null 2>&1 || true
 
 # Install the binary locally
 install:
@@ -45,8 +56,8 @@ info:
     @echo "Project: $(grep '^name' Cargo.toml | cut -d '"' -f 2)"
     @echo "Version: $(grep '^version' Cargo.toml | cut -d '"' -f 2)"
 
-# Development workflow: format, check, test
-dev: fmt clippy test
+# Development workflow: format, lint, test
+dev: fmt lint test
 
-# Full CI workflow: clean, format, check, test, build
-ci: clean fmt clippy test build
+# Full CI workflow: prereq, clean, format, lint, test, build
+ci: prereq clean fmt lint test build

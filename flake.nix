@@ -41,6 +41,7 @@
             nativeBuildInputs = [
               pkgs.cargo
               pkgs.cargo-audit
+              pkgs.cargo-nextest
               pkgs.clippy
               pkgs.just
               pkgs.pkg-config

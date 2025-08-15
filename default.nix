@@ -17,6 +17,12 @@ pkgs.rustPlatform.buildRustPackage {
     description = "A utility program that enables clipboard copying using OSC52 escape sequences";
     homepage = "https://github.com/trevorbernard/termcopy";
     license = licenses.mit;
-    maintainers = with maintainers; [ ];
+    maintainers = [
+      {
+        github = "trevorbernard";
+        name = "Trevor Bernard";
+        email = "trevor.bernard@pm.me";
+      }
+    ];
   };
 }

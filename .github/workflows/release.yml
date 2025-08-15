@@ -12,7 +12,7 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || (github.ref == 'refs/heads/main' && github.event.workflow_run.conclusion == 'success'))
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     outputs:
       release_id: ${{ steps.create_release.outputs.result }}
       upload_url: ${{ steps.create_release.outputs.upload_url }}

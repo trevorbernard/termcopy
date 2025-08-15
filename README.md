@@ -1,5 +1,7 @@
 # termcopy
 
+[![CI](https://github.com/trevorbernard/termcopy/actions/workflows/ci.yml/badge.svg)](https://github.com/trevorbernard/termcopy/actions/workflows/ci.yml)
+
 A utility program that enables clipboard copying using OSC52 escape sequences. Supports both file input and stdin piping for terminal-based clipboard operations.
 
 ## Usage

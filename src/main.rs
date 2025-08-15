@@ -1,7 +1,15 @@
-use std::env;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
+use argh::FromArgs;
 use base64::{engine::general_purpose, Engine as _};
+
+#[derive(FromArgs)]
+/// Copy data to clipboard using OSC52 escape sequences
+struct Args {
+    #[argh(positional)]
+    /// file to copy (reads from stdin if not provided)
+    file: Option<String>,
+}
 
 fn read_from_stdin() -> io::Result<Vec<u8>> {
     let stdin = io::stdin();
@@ -20,10 +28,10 @@ fn read_from_file(path: &str) -> io::Result<Vec<u8>> {
 }
 
 fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
+    let args: Args = argh::from_env();
 
-    let input_data = if args.len() > 1 {
-        read_from_file(&args[1])?
+    let input_data = if let Some(file_path) = &args.file {
+        read_from_file(file_path)?
     } else {
         read_from_stdin()?
     };

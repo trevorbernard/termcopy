@@ -41,6 +41,7 @@
             nativeBuildInputs = [
               pkgs.cargo
               pkgs.cargo-audit
+              pkgs.just
               pkgs.pkg-config
               pkgs.rustc
             ];

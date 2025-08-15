@@ -61,3 +61,20 @@ dev: fmt lint test
 
 # Full CI workflow: prereq, clean, format, lint, test, build
 ci: prereq clean fmt lint test build
+
+# Create a git tag for release
+tag version:
+    git tag -a v{{version}} -m "Release v{{version}}"
+    git push origin v{{version}}
+
+# Build release binaries for all supported platforms
+build-release-all:
+    nix build --system x86_64-linux
+    cp result/bin/termcopy termcopy-x86_64-linux
+    nix build --system aarch64-darwin
+    cp result/bin/termcopy termcopy-aarch64-darwin
+    sha256sum termcopy-* > checksums.sha256
+
+# Prepare for release: format, test, build all platforms
+release version: fmt lint test build-release-all
+    @echo "Release {{version}} prepared. Run 'just tag {{version}}' to create and push the tag."

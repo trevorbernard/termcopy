@@ -41,9 +41,11 @@
             nativeBuildInputs = [
               pkgs.cargo
               pkgs.cargo-audit
+              pkgs.clippy
               pkgs.just
               pkgs.pkg-config
               pkgs.rustc
+              pkgs.rustfmt
             ];
             buildInputs = [ ];
             shellHook = ''

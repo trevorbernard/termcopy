@@ -1,7 +1,7 @@
+use argh::FromArgs;
+use base64::{Engine as _, engine::general_purpose};
 use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
-use argh::FromArgs;
-use base64::{engine::general_purpose, Engine as _};
 
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences

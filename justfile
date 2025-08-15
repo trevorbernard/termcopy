@@ -33,7 +33,7 @@ clippy:
 # Clean build artifacts
 clean:
     cargo clean
-    rm result || true
+    rm result >/dev/null 2>&1 || true
 
 # Install the binary locally
 install:

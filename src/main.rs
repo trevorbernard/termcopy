@@ -1,7 +1,7 @@
 use argh::FromArgs;
 use base64::{engine::general_purpose, write::EncoderWriter};
 use std::fs::File;
-use std::io::{self, BufReader, Write};
+use std::io::{self, Write};
 
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
@@ -13,7 +13,7 @@ struct Args {
 
 fn stream_from_stdin_to_writer<W: Write>(writer: W) -> io::Result<()> {
     let stdin = io::stdin();
-    let mut reader = BufReader::new(stdin.lock());
+    let mut reader = stdin.lock();
     let mut encoder = EncoderWriter::new(writer, &general_purpose::STANDARD);
     io::copy(&mut reader, &mut encoder)?;
     encoder.finish()?;
@@ -21,10 +21,9 @@ fn stream_from_stdin_to_writer<W: Write>(writer: W) -> io::Result<()> {
 }
 
 fn stream_from_file_to_writer<W: Write>(path: &str, writer: W) -> io::Result<()> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
+    let mut file = File::open(path)?;
     let mut encoder = EncoderWriter::new(writer, &general_purpose::STANDARD);
-    io::copy(&mut reader, &mut encoder)?;
+    io::copy(&mut file, &mut encoder)?;
     encoder.finish()?;
     Ok(())
 }
@@ -153,13 +152,12 @@ mod tests {
     #[test]
     fn test_stream_from_stdin_to_writer() -> io::Result<()> {
         let test_input = b"stdin test data";
-        let cursor = Cursor::new(test_input);
-        let mut reader = BufReader::new(cursor);
+        let mut cursor = Cursor::new(test_input);
 
         let mut output = Vec::new();
         {
             let mut encoder = EncoderWriter::new(&mut output, &general_purpose::STANDARD);
-            io::copy(&mut reader, &mut encoder)?;
+            io::copy(&mut cursor, &mut encoder)?;
             encoder.finish()?;
         }
 

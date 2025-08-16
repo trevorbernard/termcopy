@@ -6,6 +6,10 @@ use std::io::{self, Write};
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
 struct Args {
+    #[argh(switch, short = 'v')]
+    /// show version information
+    version: bool,
+
     #[argh(positional)]
     /// file to copy (reads from stdin if not provided)
     file: Option<String>,
@@ -57,6 +61,11 @@ fn stream_to_clipboard_from_file(path: &str) -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     let args: Args = argh::from_env();
+
+    if args.version {
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
 
     if let Some(file_path) = &args.file {
         stream_to_clipboard_from_file(file_path)?;

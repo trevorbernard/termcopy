@@ -137,7 +137,7 @@ jobs:
         mkdir -p artifacts
         cp result/bin/termcopy artifacts/termcopy-${{ matrix.target }}
         cd artifacts
-        sha256sum termcopy-${{ matrix.target }} > termcopy-${{ matrix.target }}.sha256
+        nix develop --command sha256sum termcopy-${{ matrix.target }} > termcopy-${{ matrix.target }}.sha256
 
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1

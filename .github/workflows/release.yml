@@ -28,7 +28,7 @@ jobs:
         if [[ $GITHUB_REF == refs/tags/* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
         else
-          VERSION=$(grep '^version' Cargo.toml | cut -d '"' -f 2)
+          VERSION="tip"
         fi
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Version: $VERSION"
@@ -40,8 +40,38 @@ jobs:
         script: |
           const version = '${{ steps.get_version.outputs.version }}';
           const isTag = context.ref.startsWith('refs/tags/');
-          const tagName = isTag ? version : `v${version}`;
-          const releaseName = isTag ? `Release ${version}` : `Development Release ${version}`;
+          const tagName = isTag ? version : 'termcopy-tip';
+          const releaseName = isTag ? `Release ${version}` : 'termcopy tip';
+
+          if (!isTag) {
+            // For CI releases, delete existing 'termcopy tip' release if it exists
+            try {
+              const releases = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              const existingRelease = releases.data.find(r => r.name === 'termcopy tip');
+              if (existingRelease) {
+                await github.rest.repos.deleteRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: existingRelease.id
+                });
+                // Also delete the tag if it exists
+                try {
+                  await github.rest.git.deleteRef({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: 'tags/termcopy-tip'
+                  });
+                } catch (tagError) {
+                  // Tag might not exist, ignore error
+                }
+              }
+            } catch (error) {
+              // Release might not exist, continue
+            }
+          }
 
           try {
             const release = await github.rest.repos.createRelease({
@@ -57,8 +87,8 @@ jobs:
             core.setOutput('upload_url', release.data.upload_url);
             return release.data.id;
           } catch (error) {
-            if (error.status === 422) {
-              // Release already exists, get it
+            if (error.status === 422 && isTag) {
+              // Release already exists for tag, get it
               const releases = await github.rest.repos.listReleases({
                 owner: context.repo.owner,
                 repo: context.repo.repo

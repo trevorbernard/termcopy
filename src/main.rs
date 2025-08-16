@@ -6,7 +6,7 @@ use std::io::{self, Write};
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
 struct Args {
-    #[argh(switch, short = 'v')]
+    #[argh(switch, short = 'v', long = "version")]
     /// show version information
     version: bool,
 

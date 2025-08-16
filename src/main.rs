@@ -196,11 +196,6 @@ mod tests {
     }
 
     #[test]
-    fn test_osc52_prefix_suffix() -> io::Result<()> {
-        Ok(())
-    }
-
-    #[test]
     fn test_streaming_produces_same_result_as_original() -> io::Result<()> {
         let test_data = b"hello world streaming test";
         let mut temp_file = NamedTempFile::new()?;

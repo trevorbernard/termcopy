@@ -47,6 +47,7 @@
               pkgs.just
               pkgs.pkg-config
               pkgs.rustc
+              pkgs.rust-analyzer
               pkgs.rustfmt
             ];
             buildInputs = [ ];

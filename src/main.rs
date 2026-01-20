@@ -2,6 +2,7 @@ use argh::FromArgs;
 use base64::{engine::general_purpose, write::EncoderWriter};
 use std::fs::File;
 use std::io::{self, Write};
+use std::path::Path;
 
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
@@ -15,6 +16,7 @@ struct Args {
     file: Option<String>,
 }
 
+/// Streams data from stdin through base64 encoding to the provided writer.
 fn stream_from_stdin_to_writer<W: Write>(writer: W) -> io::Result<()> {
     let stdin = io::stdin();
     let mut reader = stdin.lock();
@@ -24,7 +26,8 @@ fn stream_from_stdin_to_writer<W: Write>(writer: W) -> io::Result<()> {
     Ok(())
 }
 
-fn stream_from_file_to_writer<W: Write>(path: &str, writer: W) -> io::Result<()> {
+/// Streams file contents through base64 encoding to the provided writer.
+fn stream_from_file_to_writer<W: Write>(path: &Path, writer: W) -> io::Result<()> {
     let mut file = File::open(path)?;
     let mut encoder = EncoderWriter::new(writer, &general_purpose::STANDARD);
     io::copy(&mut file, &mut encoder)?;
@@ -32,12 +35,14 @@ fn stream_from_file_to_writer<W: Write>(path: &str, writer: W) -> io::Result<()>
     Ok(())
 }
 
+/// Writes the OSC52 prefix escape sequence to stdout.
 fn write_osc52_prefix() -> io::Result<()> {
     let mut stdout = io::stdout();
     stdout.write_all(b"\x1b]52;c;")?;
     Ok(())
 }
 
+/// Writes the OSC52 suffix escape sequence to stdout and flushes.
 fn write_osc52_suffix() -> io::Result<()> {
     let mut stdout = io::stdout();
     stdout.write_all(b"\x07")?;
@@ -45,18 +50,15 @@ fn write_osc52_suffix() -> io::Result<()> {
     Ok(())
 }
 
-fn stream_to_clipboard_from_stdin() -> io::Result<()> {
+/// Streams data to clipboard using OSC52 escape sequences.
+/// Reads from stdin if file is None, otherwise reads from the specified file.
+fn stream_to_clipboard(file: Option<&Path>) -> io::Result<()> {
     write_osc52_prefix()?;
-    stream_from_stdin_to_writer(io::stdout())?;
-    write_osc52_suffix()?;
-    Ok(())
-}
-
-fn stream_to_clipboard_from_file(path: &str) -> io::Result<()> {
-    write_osc52_prefix()?;
-    stream_from_file_to_writer(path, io::stdout())?;
-    write_osc52_suffix()?;
-    Ok(())
+    match file {
+        Some(path) => stream_from_file_to_writer(path, io::stdout())?,
+        None => stream_from_stdin_to_writer(io::stdout())?,
+    }
+    write_osc52_suffix()
 }
 
 fn main() -> io::Result<()> {
@@ -67,13 +69,7 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    if let Some(file_path) = &args.file {
-        stream_to_clipboard_from_file(file_path)?;
-    } else {
-        stream_to_clipboard_from_stdin()?;
-    }
-
-    Ok(())
+    stream_to_clipboard(args.file.as_deref().map(Path::new))
 }
 
 #[cfg(test)]
@@ -90,27 +86,34 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_osc52_sequence() {
-        let test_data = b"hello world";
-        let result = generate_osc52_sequence(test_data);
-        let expected = "\x1b]52;c;aGVsbG8gd29ybGQ=\x07";
-        assert_eq!(result, expected);
-    }
+    fn test_osc52_sequence_generation() {
+        let test_cases = vec![
+            (b"hello world" as &[u8], "aGVsbG8gd29ybGQ="),
+            (b"", ""),
+            (&[0x00, 0x01, 0x02, 0xFF], "AAEC/w=="),
+            (b"a", "YQ=="),
+            (b"ab", "YWI="),
+            (b"abc", "YWJj"),
+        ];
 
-    #[test]
-    fn test_generate_osc52_sequence_empty() {
-        let test_data = b"";
-        let result = generate_osc52_sequence(test_data);
-        let expected = "\x1b]52;c;\x07";
-        assert_eq!(result, expected);
-    }
+        for (input, expected_base64) in test_cases {
+            let result = generate_osc52_sequence(input);
+            let expected = format!("\x1b]52;c;{}\x07", expected_base64);
+            assert_eq!(result, expected, "Failed for input: {:?}", input);
 
-    #[test]
-    fn test_generate_osc52_sequence_binary() {
-        let test_data = &[0x00, 0x01, 0x02, 0xFF];
-        let result = generate_osc52_sequence(test_data);
-        let expected = "\x1b]52;c;AAEC/w==\x07";
-        assert_eq!(result, expected);
+            // Verify structure
+            assert!(result.starts_with("\x1b]52;c;"));
+            assert!(result.ends_with("\x07"));
+
+            // Verify base64 encoding is correct
+            if !expected_base64.is_empty() {
+                let base64_part = &result[7..result.len() - 1];
+                let decoded = general_purpose::STANDARD
+                    .decode(base64_part)
+                    .expect("base64 decoding should succeed");
+                assert_eq!(decoded, input);
+            }
+        }
     }
 
     #[test]
@@ -120,10 +123,13 @@ mod tests {
         temp_file.write_all(test_content)?;
 
         let mut output = Vec::new();
-        stream_from_file_to_writer(temp_file.path().to_str().unwrap(), &mut output)?;
+        stream_from_file_to_writer(temp_file.path(), &mut output)?;
 
         let expected_base64 = general_purpose::STANDARD.encode(test_content);
-        assert_eq!(String::from_utf8(output).unwrap(), expected_base64);
+        assert_eq!(
+            String::from_utf8(output).expect("output should be valid UTF-8"),
+            expected_base64
+        );
         Ok(())
     }
 
@@ -131,16 +137,19 @@ mod tests {
     fn test_stream_from_file_to_writer_empty() -> io::Result<()> {
         let temp_file = NamedTempFile::new()?;
         let mut output = Vec::new();
-        stream_from_file_to_writer(temp_file.path().to_str().unwrap(), &mut output)?;
+        stream_from_file_to_writer(temp_file.path(), &mut output)?;
 
-        assert_eq!(String::from_utf8(output).unwrap(), "");
+        assert_eq!(
+            String::from_utf8(output).expect("output should be valid UTF-8"),
+            ""
+        );
         Ok(())
     }
 
     #[test]
     fn test_stream_from_file_nonexistent() {
         let mut output = Vec::new();
-        let result = stream_from_file_to_writer("/nonexistent/file/path", &mut output);
+        let result = stream_from_file_to_writer(Path::new("/nonexistent/file/path"), &mut output);
         assert!(result.is_err());
     }
 
@@ -151,10 +160,13 @@ mod tests {
         temp_file.write_all(&large_content)?;
 
         let mut output = Vec::new();
-        stream_from_file_to_writer(temp_file.path().to_str().unwrap(), &mut output)?;
+        stream_from_file_to_writer(temp_file.path(), &mut output)?;
 
         let expected_base64 = general_purpose::STANDARD.encode(&large_content);
-        assert_eq!(String::from_utf8(output).unwrap(), expected_base64);
+        assert_eq!(
+            String::from_utf8(output).expect("output should be valid UTF-8"),
+            expected_base64
+        );
         Ok(())
     }
 
@@ -171,37 +183,11 @@ mod tests {
         }
 
         let expected_base64 = general_purpose::STANDARD.encode(test_input);
-        assert_eq!(String::from_utf8(output).unwrap(), expected_base64);
+        assert_eq!(
+            String::from_utf8(output).expect("output should be valid UTF-8"),
+            expected_base64
+        );
         Ok(())
-    }
-
-    #[test]
-    fn test_osc52_sequence_format() {
-        let test_cases = vec![
-            (b"a".as_slice(), "YQ=="),
-            (b"ab".as_slice(), "YWI="),
-            (b"abc".as_slice(), "YWJj"),
-            (b"hello".as_slice(), "aGVsbG8="),
-        ];
-
-        for (input, expected_base64) in test_cases {
-            let result = generate_osc52_sequence(input);
-            let expected = format!("\x1b]52;c;{}\x07", expected_base64);
-            assert_eq!(result, expected);
-        }
-    }
-
-    #[test]
-    fn test_osc52_sequence_contains_correct_parts() {
-        let test_data = b"test";
-        let result = generate_osc52_sequence(test_data);
-
-        assert!(result.starts_with("\x1b]52;c;"));
-        assert!(result.ends_with("\x07"));
-
-        let base64_part = &result[7..result.len() - 1];
-        let decoded = general_purpose::STANDARD.decode(base64_part).unwrap();
-        assert_eq!(decoded, test_data);
     }
 
     #[test]
@@ -214,10 +200,13 @@ mod tests {
 
         let mut streamed_output = Vec::new();
         streamed_output.extend_from_slice(b"\x1b]52;c;");
-        stream_from_file_to_writer(temp_file.path().to_str().unwrap(), &mut streamed_output)?;
+        stream_from_file_to_writer(temp_file.path(), &mut streamed_output)?;
         streamed_output.extend_from_slice(b"\x07");
 
-        assert_eq!(String::from_utf8(streamed_output).unwrap(), original_result);
+        assert_eq!(
+            String::from_utf8(streamed_output).expect("output should be valid UTF-8"),
+            original_result
+        );
         Ok(())
     }
 }

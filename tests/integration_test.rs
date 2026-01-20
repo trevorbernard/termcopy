@@ -3,7 +3,7 @@ use std::process::Command;
 #[test]
 fn test_version_flag() {
     let output = Command::new("cargo")
-        .args(&["run", "--", "--version"])
+        .args(["run", "--", "--version"])
         .output()
         .expect("Failed to execute command");
 
@@ -16,7 +16,7 @@ fn test_version_flag() {
 #[test]
 fn test_version_flag_short() {
     let output = Command::new("cargo")
-        .args(&["run", "--", "-v"])
+        .args(["run", "--", "-v"])
         .output()
         .expect("Failed to execute command");
 

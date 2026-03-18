@@ -55,7 +55,6 @@
             pkgs.rust-analyzer
             pkgs.rustfmt
           ];
-          buildInputs = [];
           shellHook = ''
             echo "Rust $(rustc --version)"
             echo "Cargo $(cargo --version)"

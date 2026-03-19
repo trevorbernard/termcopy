@@ -12,6 +12,9 @@ pkgs.rustPlatform.buildRustPackage {
   nativeBuildInputs = [
     pkgs.pkg-config
   ];
+  postInstall = ''
+    ln -s $out/bin/termcopy $out/bin/tc
+  '';
   meta = with pkgs.lib; {
     description = "A utility program that enables clipboard copying using OSC52 escape sequences";
     homepage = "https://github.com/trevorbernard/termcopy";

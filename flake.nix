@@ -1,11 +1,14 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11-small";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {
-    self,
     nixpkgs,
+    rust-overlay,
+    ...
   }: let
     supportedSystems = [
       "x86_64-linux"
@@ -17,6 +20,7 @@
           f {
             pkgs = import nixpkgs {
               inherit system;
+              overlays = [rust-overlay.overlays.default];
             };
           }
       );
@@ -41,19 +45,17 @@
     );
 
     devShells = forEachSupportedSystem (
-      {pkgs}: {
+      {pkgs}: let
+        rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+      in {
         default = pkgs.mkShell {
           nativeBuildInputs = [
-            pkgs.cargo
+            rust
             pkgs.cargo-audit
             pkgs.cargo-nextest
-            pkgs.clippy
             pkgs.coreutils # for sha256sum
             pkgs.just
             pkgs.pkg-config
-            pkgs.rustc
-            pkgs.rust-analyzer
-            pkgs.rustfmt
           ];
           shellHook = ''
             echo "Rust $(rustc --version)"

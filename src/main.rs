@@ -3,6 +3,9 @@ use base64::{engine::general_purpose, write::EncoderWriter};
 use std::fs::File;
 use std::io::{self, Read, Write};
 
+const OSC52_PREFIX: &[u8] = b"\x1b]52;c;";
+const OSC52_SUFFIX: &[u8] = b"\x07";
+
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
 struct Args {
@@ -22,12 +25,11 @@ fn base64_encode_stream<R: Read + ?Sized, W: Write>(reader: &mut R, writer: W) -
     Ok(())
 }
 
-fn copy_to_clipboard(source: &mut dyn Read) -> io::Result<()> {
-    let mut stdout = io::stdout();
-    stdout.write_all(b"\x1b]52;c;")?;
-    base64_encode_stream(source, &mut stdout)?;
-    stdout.write_all(b"\x07")?;
-    stdout.flush()
+fn copy_to_clipboard(source: &mut dyn Read, dest: &mut dyn Write) -> io::Result<()> {
+    dest.write_all(OSC52_PREFIX)?;
+    base64_encode_stream(source, &mut *dest)?;
+    dest.write_all(OSC52_SUFFIX)?;
+    dest.flush()
 }
 
 fn main() -> io::Result<()> {
@@ -38,9 +40,11 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
     match &args.file {
-        Some(path) => copy_to_clipboard(&mut File::open(path)?),
-        None => copy_to_clipboard(&mut io::stdin().lock()),
+        Some(path) => copy_to_clipboard(&mut File::open(path)?, &mut out),
+        None => copy_to_clipboard(&mut io::stdin().lock(), &mut out),
     }
 }
 
@@ -49,7 +53,6 @@ mod tests {
     use super::*;
     use base64::Engine;
     use std::io::Cursor;
-    use std::io::Write;
     use tempfile::NamedTempFile;
 
     fn generate_osc52_sequence(data: &[u8]) -> String {
@@ -150,7 +153,7 @@ mod tests {
         assert!(result.starts_with("\x1b]52;c;"));
         assert!(result.ends_with("\x07"));
 
-        let base64_part = &result[7..result.len() - 1];
+        let base64_part = &result[OSC52_PREFIX.len()..result.len() - OSC52_SUFFIX.len()];
         let decoded = general_purpose::STANDARD.decode(base64_part).unwrap();
         assert_eq!(decoded, test_data);
     }
@@ -164,9 +167,7 @@ mod tests {
         let expected = generate_osc52_sequence(test_data);
 
         let mut streamed_output = Vec::new();
-        streamed_output.extend_from_slice(b"\x1b]52;c;");
-        base64_encode_stream(&mut File::open(temp_file.path())?, &mut streamed_output)?;
-        streamed_output.extend_from_slice(b"\x07");
+        copy_to_clipboard(&mut File::open(temp_file.path())?, &mut streamed_output)?;
 
         assert_eq!(String::from_utf8(streamed_output).unwrap(), expected);
         Ok(())

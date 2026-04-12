@@ -28,15 +28,20 @@
     formatter = forEachSupportedSystem ({pkgs}: pkgs.alejandra);
 
     packages = forEachSupportedSystem (
-      {pkgs}:
-        {
-          default = pkgs.callPackage ./default.nix {};
-        }
+      {pkgs}: let
+        rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = rust;
+          rustc = rust;
+        };
+        default = pkgs.callPackage ./default.nix {inherit rustPlatform;};
+      in
+        {inherit default;}
         // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
           dockerImage = pkgs.dockerTools.buildLayeredImage {
             name = "termcopy";
             tag = "latest";
-            contents = [(pkgs.callPackage ./default.nix {})];
+            contents = [default];
             config = {
               Entrypoint = ["/bin/termcopy"];
             };

@@ -1,8 +1,11 @@
-{ pkgs }:
+{
+  pkgs,
+  rustPlatform ? pkgs.rustPlatform,
+}:
 let
   cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 in
-pkgs.rustPlatform.buildRustPackage {
+rustPlatform.buildRustPackage {
   pname = cargoToml.package.name;
   version = cargoToml.package.version;
   src = pkgs.lib.cleanSource ./.;

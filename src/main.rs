@@ -3,8 +3,8 @@ use base64::{engine::general_purpose, write::EncoderWriter};
 use std::fs::File;
 use std::io::{self, Read, Write};
 
-const OSC52_PREFIX: &[u8] = b"\x1b]52;c;";
-const OSC52_SUFFIX: &[u8] = b"\x07";
+const OSC52_PREFIX: &str = "\x1b]52;c;";
+const OSC52_SUFFIX: &str = "\x07";
 
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
@@ -26,9 +26,9 @@ fn base64_encode_stream<R: Read + ?Sized, W: Write>(reader: &mut R, writer: W) -
 }
 
 fn copy_to_clipboard(source: &mut dyn Read, dest: &mut dyn Write) -> io::Result<()> {
-    dest.write_all(OSC52_PREFIX)?;
+    dest.write_all(OSC52_PREFIX.as_bytes())?;
     base64_encode_stream(source, &mut *dest)?;
-    dest.write_all(OSC52_SUFFIX)?;
+    dest.write_all(OSC52_SUFFIX.as_bytes())?;
     dest.flush()
 }
 
@@ -57,7 +57,7 @@ mod tests {
 
     fn generate_osc52_sequence(data: &[u8]) -> String {
         let encoded = general_purpose::STANDARD.encode(data);
-        format!("\x1b]52;c;{}\x07", encoded)
+        format!("{}{}{}", OSC52_PREFIX, encoded, OSC52_SUFFIX)
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod tests {
 
         for (input, expected_base64) in test_cases {
             let result = generate_osc52_sequence(input);
-            let expected = format!("\x1b]52;c;{}\x07", expected_base64);
+            let expected = format!("{}{}{}", OSC52_PREFIX, expected_base64, OSC52_SUFFIX);
             assert_eq!(result, expected);
         }
     }
@@ -150,8 +150,8 @@ mod tests {
         let test_data = b"test";
         let result = generate_osc52_sequence(test_data);
 
-        assert!(result.starts_with("\x1b]52;c;"));
-        assert!(result.ends_with("\x07"));
+        assert!(result.starts_with(OSC52_PREFIX));
+        assert!(result.ends_with(OSC52_SUFFIX));
 
         let base64_part = &result[OSC52_PREFIX.len()..result.len() - OSC52_SUFFIX.len()];
         let decoded = general_purpose::STANDARD.decode(base64_part).unwrap();

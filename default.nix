@@ -4,11 +4,20 @@
 }:
 let
   cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+  fs = pkgs.lib.fileset;
 in
 rustPlatform.buildRustPackage {
   pname = cargoToml.package.name;
   version = cargoToml.package.version;
-  src = pkgs.lib.cleanSource ./.;
+  src = fs.toSource {
+    root = ./.;
+    fileset = fs.unions [
+      ./Cargo.toml
+      ./Cargo.lock
+      ./src
+      ./tests
+    ];
+  };
   cargoLock = {
     lockFile = ./Cargo.lock;
   };

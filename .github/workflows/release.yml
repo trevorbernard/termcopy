@@ -2,159 +2,83 @@ name: Release
 
 on:
   push:
-    tags: ['v*.*.*']
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-    outputs:
-      release_id: ${{ steps.create_release.outputs.result }}
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Get version
-      id: get_version
-      run: |
-        if [[ $GITHUB_REF == refs/tags/* ]]; then
-          VERSION=${GITHUB_REF#refs/tags/}
-        else
-          VERSION="tip"
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION"
-
-    - name: Create Release
-      id: create_release
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const version = '${{ steps.get_version.outputs.version }}';
-          const isTag = context.ref.startsWith('refs/tags/');
-          const tagName = isTag ? version : 'termcopy-tip';
-          const releaseName = isTag ? `Release ${version}` : 'termcopy tip';
-
-          if (!isTag) {
-            // For CI releases, delete existing 'termcopy tip' release if it exists
-            try {
-              const releases = await github.rest.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo
-              });
-              const existingRelease = releases.data.find(r => r.name === 'termcopy tip');
-              if (existingRelease) {
-                await github.rest.repos.deleteRelease({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: existingRelease.id
-                });
-                // Also delete the tag if it exists
-                try {
-                  await github.rest.git.deleteRef({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    ref: 'tags/termcopy-tip'
-                  });
-                } catch (tagError) {
-                  // Tag might not exist, ignore error
-                }
-              }
-            } catch (error) {
-              // Release might not exist, continue
-            }
-          }
-
-          try {
-            const release = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tagName,
-              name: releaseName,
-              body: `Automated release for ${isTag ? 'tag' : 'commit'} ${context.sha.substring(0, 7)}`,
-              draft: false,
-              prerelease: !isTag
-            });
-
-            core.setOutput('upload_url', release.data.upload_url);
-            return release.data.id;
-          } catch (error) {
-            if (error.status === 422 && isTag) {
-              // Release already exists for tag, get it
-              const releases = await github.rest.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo
-              });
-              const existingRelease = releases.data.find(r => r.tag_name === tagName);
-              if (existingRelease) {
-                core.setOutput('upload_url', existingRelease.upload_url);
-                return existingRelease.id;
-              }
-            }
-            throw error;
-          }
-
-  build-and-upload:
-    needs: create-release
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-linux
-            system: x86_64-linux
+            target: x86_64-unknown-linux-musl
+            use_cross: true
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            use_cross: true
           - os: macos-latest
-            target: aarch64-darwin
-            system: aarch64-darwin
-    runs-on: ${{ matrix.os }}
+            target: aarch64-apple-darwin
+            use_cross: false
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            use_cross: false
+
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-    - name: Install Nix
-      uses: cachix/install-nix-action@v27
-      with:
-        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: '1.94.1'
+          targets: ${{ matrix.target }}
 
-    - name: Setup Nix cache
-      uses: cachix/cachix-action@v15
-      with:
-        name: nix-community
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        skipPush: true
+      - name: Install cross
+        if: matrix.use_cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
 
-    - name: Build with Nix
-      run: nix build --system ${{ matrix.system }}
+      - name: Build
+        run: ${{ matrix.use_cross && 'cross' || 'cargo' }} build --release --target ${{ matrix.target }}
 
-    - name: Prepare artifacts
-      run: |
-        mkdir -p artifacts
-        cp result/bin/termcopy artifacts/termcopy-${{ matrix.target }}
-        cd artifacts
-        nix develop --command sha256sum termcopy-${{ matrix.target }} > termcopy-${{ matrix.target }}.sha256
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../termcopy-${{ github.ref_name }}-${{ matrix.target }}.tar.gz termcopy
+          cd ../../..
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./artifacts/termcopy-${{ matrix.target }}
-        asset_name: termcopy-${{ matrix.target }}
-        asset_content_type: application/octet-stream
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path termcopy.exe -DestinationPath ../../../termcopy-${{ github.ref_name }}-${{ matrix.target }}.zip
+          cd ../../..
 
-    - name: Upload Checksum
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./artifacts/termcopy-${{ matrix.target }}.sha256
-        asset_name: termcopy-${{ matrix.target }}.sha256
-        asset_content_type: text/plain
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: termcopy-${{ matrix.target }}
+          path: termcopy-${{ github.ref_name }}-${{ matrix.target }}.*
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

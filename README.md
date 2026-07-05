@@ -8,6 +8,30 @@ A utility program that enables clipboard copying using OSC52 escape sequences. S
 
 ### Installation
 
+#### Prebuilt binaries
+
+Download the archive for your platform from the [latest release](https://github.com/trevorbernard/termcopy/releases/latest):
+
+| Platform | Asset |
+|---|---|
+| Linux x86_64 (static) | `termcopy-<version>-x86_64-unknown-linux-musl.tar.gz` |
+| Linux aarch64 (static) | `termcopy-<version>-aarch64-unknown-linux-musl.tar.gz` |
+| macOS Apple Silicon | `termcopy-<version>-aarch64-apple-darwin.tar.gz` |
+| Windows x86_64 | `termcopy-<version>-x86_64-pc-windows-msvc.zip` |
+
+On Linux and macOS:
+
+```bash
+VERSION=v0.2.0
+TARGET=x86_64-unknown-linux-musl # or aarch64-unknown-linux-musl, aarch64-apple-darwin
+curl -L "https://github.com/trevorbernard/termcopy/releases/download/${VERSION}/termcopy-${VERSION}-${TARGET}.tar.gz" | tar xz
+install -m 755 termcopy ~/.local/bin/
+```
+
+On Windows, extract the `.zip` and place `termcopy.exe` somewhere on your `PATH`.
+
+#### From source
+
 ```bash
 just install
 ```

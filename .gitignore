@@ -1,3 +1,7 @@
 .direnv/
 target/
 result
+result-*
+termcopy-x86_64-linux
+termcopy-aarch64-darwin
+checksums.sha256

@@ -20,21 +20,24 @@
         f:
         nixpkgs.lib.genAttrs supportedSystems (
           system:
-          f {
+          let
             pkgs = import nixpkgs {
               inherit system;
               overlays = [ rust-overlay.overlays.default ];
             };
+          in
+          f {
+            inherit pkgs;
+            rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           }
         );
     in
     {
-      formatter = forEachSupportedSystem ({ pkgs }: pkgs.nixfmt);
+      formatter = forEachSupportedSystem ({ pkgs, ... }: pkgs.nixfmt);
 
       packages = forEachSupportedSystem (
-        { pkgs }:
+        { pkgs, rust }:
         let
-          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           rustPlatform = pkgs.makeRustPlatform {
             cargo = rust;
             rustc = rust;
@@ -58,10 +61,7 @@
       );
 
       devShells = forEachSupportedSystem (
-        { pkgs }:
-        let
-          rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-        in
+        { pkgs, rust }:
         {
           default = pkgs.mkShell {
             nativeBuildInputs = [

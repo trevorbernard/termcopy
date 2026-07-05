@@ -24,8 +24,19 @@ On Linux and macOS:
 ```bash
 VERSION=v0.2.0
 TARGET=x86_64-unknown-linux-musl # or aarch64-unknown-linux-musl, aarch64-apple-darwin
-curl -L "https://github.com/trevorbernard/termcopy/releases/download/${VERSION}/termcopy-${VERSION}-${TARGET}.tar.gz" | tar xz
+curl -LO "https://github.com/trevorbernard/termcopy/releases/download/${VERSION}/termcopy-${VERSION}-${TARGET}.tar.gz"
+curl -LO "https://github.com/trevorbernard/termcopy/releases/download/${VERSION}/checksums.sha256"
+sha256sum -c --ignore-missing checksums.sha256
+tar xzf "termcopy-${VERSION}-${TARGET}.tar.gz"
 install -m 755 termcopy ~/.local/bin/
+```
+
+On macOS, use `shasum -a 256 -c --ignore-missing checksums.sha256` instead of `sha256sum`.
+
+Release archives also carry signed build provenance; with the [GitHub CLI](https://cli.github.com/) you can verify an archive was built by this repository's release workflow:
+
+```bash
+gh attestation verify "termcopy-${VERSION}-${TARGET}.tar.gz" --repo trevorbernard/termcopy
 ```
 
 On Windows, extract the `.zip` and place `termcopy.exe` somewhere on your `PATH`.

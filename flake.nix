@@ -51,6 +51,7 @@
             contents = [ default ];
             config = {
               Entrypoint = [ "/bin/termcopy" ];
+              User = "65534:65534";
             };
           };
         }

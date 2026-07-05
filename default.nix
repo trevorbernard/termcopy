@@ -21,9 +21,6 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ./Cargo.lock;
   };
-  nativeBuildInputs = [
-    pkgs.pkg-config
-  ];
   postInstall = ''
     ln -s $out/bin/termcopy $out/bin/tc
   '';

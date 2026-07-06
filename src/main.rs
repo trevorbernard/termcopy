@@ -24,9 +24,28 @@ struct Args {
     /// otherwise stdout)
     output: Option<OutputTarget>,
 
+    #[argh(switch, short = 't', long = "tee")]
+    /// pass input through to stdout while copying; the escape sequence
+    /// goes to the controlling tty (requires one)
+    tee: bool,
+
     #[argh(positional)]
     /// file to copy (reads from stdin if not provided)
     file: Option<String>,
+}
+
+/// Mirrors everything read from `reader` to `tee`.
+struct TeeReader<R, W> {
+    reader: R,
+    tee: W,
+}
+
+impl<R: Read, W: Write> Read for TeeReader<R, W> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.reader.read(buf)?;
+        self.tee.write_all(&buf[..n])?;
+        Ok(n)
+    }
 }
 
 enum OutputTarget {
@@ -86,6 +105,20 @@ fn copy_to_clipboard(source: impl Read, mut dest: impl Write) -> io::Result<()> 
     dest.flush()
 }
 
+fn run(source: impl Read, escape: impl Write, tee: bool) -> io::Result<()> {
+    if tee {
+        let mut stdout = io::stdout().lock();
+        let source = TeeReader {
+            reader: source,
+            tee: &mut stdout,
+        };
+        copy_to_clipboard(source, escape)?;
+        stdout.flush()
+    } else {
+        copy_to_clipboard(source, escape)
+    }
+}
+
 fn main() -> io::Result<()> {
     let args: Args = argh::from_env();
 
@@ -94,12 +127,26 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
+    let escape_dest = if args.tee {
+        // In tee mode stdout carries the data, so the escape sequence must
+        // go to the controlling terminal — there is no stdout fallback.
+        if matches!(args.output, Some(OutputTarget::Stdout)) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "--output stdout cannot be combined with --tee: stdout carries the data",
+            ));
+        }
+        Box::new(open_tty()?) as Box<dyn Write>
+    } else {
+        clipboard_writer(args.output)?
+    };
+
     // The base64 payload contains no newlines, so an unbuffered writer
     // would flush roughly once per KiB.
-    let mut out = BufWriter::new(clipboard_writer(args.output)?);
+    let mut escape = BufWriter::new(escape_dest);
     match &args.file {
-        Some(path) => copy_to_clipboard(File::open(path)?, &mut out),
-        None => copy_to_clipboard(io::stdin().lock(), &mut out),
+        Some(path) => run(File::open(path)?, &mut escape, args.tee),
+        None => run(io::stdin().lock(), &mut escape, args.tee),
     }
 }
 
@@ -129,6 +176,20 @@ mod tests {
         for (input, expected) in cases {
             assert_eq!(osc52(input), *expected);
         }
+    }
+
+    #[test]
+    fn test_tee_mirrors_input_and_copies() {
+        let mut mirrored = Vec::new();
+        let mut escape = Vec::new();
+        let source = TeeReader {
+            reader: Cursor::new(b"hello world"),
+            tee: &mut mirrored,
+        };
+        copy_to_clipboard(source, &mut escape).unwrap();
+
+        assert_eq!(mirrored, b"hello world");
+        assert_eq!(escape, b"\x1b]52;c;aGVsbG8gd29ybGQ=\x07");
     }
 
     #[test]

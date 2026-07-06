@@ -62,3 +62,15 @@ fn test_rejects_unknown_output_target() {
     let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
     assert!(stderr.contains("stdout") && stderr.contains("tty"));
 }
+
+#[test]
+fn test_tee_rejects_output_stdout() {
+    let output = termcopy()
+        .args(["--tee", "--output", "stdout"])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
+    assert!(stderr.contains("--tee"));
+}

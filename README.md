@@ -75,6 +75,15 @@ the log stays clean:
 ./release.sh > release.log   # a termcopy call inside still reaches the clipboard
 ```
 
+Copy *and* keep the data flowing with `--tee` — input passes through to
+stdout unchanged, like `tee(1)` with the clipboard as the second
+destination (requires a controlling terminal):
+```bash
+curl -s api/token | termcopy --tee | jq .    # view it formatted, copy the raw bytes
+make 2>&1 | termcopy --tee | less            # page the build output, copy it too
+./deploy.sh | termcopy --tee >> deploy.log   # log it and copy it in one run
+```
+
 Inside tmux, termcopy works with `set -g set-clipboard on` in your
 `.tmux.conf` (tmux's default of `external` ignores OSC52 from applications).
 

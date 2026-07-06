@@ -21,6 +21,12 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ./Cargo.lock;
   };
+  # With rust-src in the sysroot, rustc embeds absolute /nix/store paths to std
+  # sources in panic-location strings, pulling the entire ~2GB toolchain into
+  # the runtime closure (and the docker image). Remap them to a neutral prefix.
+  preBuild = ''
+    export RUSTFLAGS="''${RUSTFLAGS:-} --remap-path-prefix $(rustc --print sysroot)=/rust-toolchain"
+  '';
   postInstall = ''
     ln -s $out/bin/termcopy $out/bin/tc
   '';

@@ -47,16 +47,49 @@ On Windows, extract the `.zip` and place `termcopy.exe` somewhere on your `PATH`
 just install
 ```
 
-### Running the Program
+### Examples
 
-Copy file contents to clipboard:
+Copy a file:
 ```bash
-just run filename.txt
+termcopy notes.txt
 ```
 
-Copy from stdin:
+Copy the output of a command:
 ```bash
-echo "hello world" | just run
+echo "hello world" | termcopy
+git rev-parse HEAD | termcopy
+pwd | termcopy
+```
+
+Copy from a remote machine to your **local** clipboard — the escape
+sequence travels back over ssh and your local terminal interprets it:
+```bash
+ssh dev-box termcopy /etc/hostname
+ssh dev-box 'grep ERROR /var/log/app.log | termcopy'
+```
+
+Copy from inside a script whose output is captured — the escape sequence
+goes to your terminal, not into the capture, so the copy still happens and
+the log stays clean:
+```bash
+./release.sh > release.log   # a termcopy call inside still reaches the clipboard
+```
+
+Inside tmux, termcopy works with `set -g set-clipboard on` in your
+`.tmux.conf` (tmux's default of `external` ignores OSC52 from applications).
+
+### Output destination
+
+By default the escape sequence goes to stdout when stdout is a terminal.
+When stdout is redirected (`termcopy file > log`, command substitution, a
+pipeline), it goes to the controlling terminal instead, so the copy still
+happens and the capture stays clean; if there is no controlling terminal
+(e.g. `ssh host termcopy` without a remote tty), it falls back to stdout so
+the sequence reaches your local terminal. Use `--output stdout` or
+`--output tty` to pin the destination explicitly:
+```bash
+termcopy --output stdout file.txt   # always stdout, e.g. for scripting
+termcopy --output tty file.txt      # always the controlling terminal
 ```
 
 ### Development

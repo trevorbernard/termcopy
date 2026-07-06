@@ -1,10 +1,15 @@
-use argh::FromArgs;
+use argh::{FromArgValue, FromArgs};
 use base64::{engine::general_purpose, write::EncoderWriter};
 use std::fs::File;
-use std::io::{self, BufWriter, Read, Write};
+use std::io::{self, BufWriter, IsTerminal, Read, Write};
 
 const OSC52_PREFIX: &str = "\x1b]52;c;";
 const OSC52_SUFFIX: &str = "\x07";
+
+#[cfg(windows)]
+const TTY_PATH: &str = "CONOUT$";
+#[cfg(not(windows))]
+const TTY_PATH: &str = "/dev/tty";
 
 #[derive(FromArgs)]
 /// Copy data to clipboard using OSC52 escape sequences
@@ -13,9 +18,58 @@ struct Args {
     /// show version information
     version: bool,
 
+    #[argh(option, short = 'o', long = "output")]
+    /// where to write the escape sequence: "stdout" or "tty" (default:
+    /// stdout if it is a terminal, otherwise the controlling tty,
+    /// otherwise stdout)
+    output: Option<OutputTarget>,
+
     #[argh(positional)]
     /// file to copy (reads from stdin if not provided)
     file: Option<String>,
+}
+
+enum OutputTarget {
+    Stdout,
+    Tty,
+}
+
+impl FromArgValue for OutputTarget {
+    fn from_arg_value(value: &str) -> Result<Self, String> {
+        match value {
+            "stdout" => Ok(Self::Stdout),
+            "tty" => Ok(Self::Tty),
+            _ => Err(format!("expected \"stdout\" or \"tty\", got \"{value}\"")),
+        }
+    }
+}
+
+fn open_tty() -> io::Result<File> {
+    File::options()
+        .write(true)
+        .open(TTY_PATH)
+        .map_err(|e| io::Error::new(e.kind(), format!("cannot open {TTY_PATH}: {e}")))
+}
+
+fn clipboard_writer(target: Option<OutputTarget>) -> io::Result<Box<dyn Write>> {
+    match target {
+        Some(OutputTarget::Stdout) => Ok(Box::new(io::stdout().lock())),
+        Some(OutputTarget::Tty) => Ok(Box::new(open_tty()?)),
+        None => {
+            let stdout = io::stdout().lock();
+            if stdout.is_terminal() {
+                return Ok(Box::new(stdout));
+            }
+            // stdout is redirected, so send the escape sequence to the
+            // controlling terminal instead of polluting the capture. If there
+            // is no controlling terminal, the pipe may still lead to one
+            // (e.g. `ssh host termcopy` without a remote tty), so fall back.
+            match open_tty() {
+                Ok(tty) => Ok(Box::new(tty)),
+                Err(_) => Ok(Box::new(stdout)),
+            }
+        }
+    }
 }
 
 fn base64_encode_stream(mut reader: impl Read, writer: impl Write) -> io::Result<()> {
@@ -40,9 +94,9 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    // The base64 payload contains no newlines, so a bare (line-buffered)
-    // StdoutLock would flush roughly once per KiB.
-    let mut out = BufWriter::new(io::stdout().lock());
+    // The base64 payload contains no newlines, so an unbuffered writer
+    // would flush roughly once per KiB.
+    let mut out = BufWriter::new(clipboard_writer(args.output)?);
     match &args.file {
         Some(path) => copy_to_clipboard(File::open(path)?, &mut out),
         None => copy_to_clipboard(io::stdin().lock(), &mut out),

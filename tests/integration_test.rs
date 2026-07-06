@@ -17,9 +17,14 @@ fn test_version_flag() {
     }
 }
 
+// The tests pin `--output stdout` so the escape sequence stays capturable:
+// the default cascade would route it to the controlling terminal whenever
+// the test runner has one.
+
 #[test]
 fn test_copies_stdin_as_osc52() {
     let mut child = termcopy()
+        .args(["--output", "stdout"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -41,7 +46,19 @@ fn test_copies_file_as_osc52() {
     let mut file = tempfile::NamedTempFile::new().unwrap();
     file.write_all(b"hello world").unwrap();
 
-    let output = termcopy().arg(file.path()).output().unwrap();
+    let output = termcopy()
+        .args(["--output", "stdout"])
+        .arg(file.path())
+        .output()
+        .unwrap();
     assert!(output.status.success());
     assert_eq!(output.stdout, b"\x1b]52;c;aGVsbG8gd29ybGQ=\x07");
+}
+
+#[test]
+fn test_rejects_unknown_output_target() {
+    let output = termcopy().args(["--output", "clipboard"]).output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
+    assert!(stderr.contains("stdout") && stderr.contains("tty"));
 }

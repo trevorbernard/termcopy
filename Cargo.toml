@@ -1,6 +1,6 @@
 [package]
 name = "termcopy"
-version = "0.3.0"
+version = "0.4.0-dev"
 edition = "2021"
 description = "A utility program that enables clipboard copying using OSC52 escape sequences"
 repository = "https://github.com/trevorbernard/termcopy"

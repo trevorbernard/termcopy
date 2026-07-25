@@ -127,7 +127,7 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    let escape_dest = if args.tee {
+    let escape_dest: Box<dyn Write> = if args.tee {
         // In tee mode stdout carries the data, so the escape sequence must
         // go to the controlling terminal — there is no stdout fallback.
         if matches!(args.output, Some(OutputTarget::Stdout)) {
@@ -136,7 +136,7 @@ fn main() -> io::Result<()> {
                 "--output stdout cannot be combined with --tee: stdout carries the data",
             ));
         }
-        Box::new(open_tty()?) as Box<dyn Write>
+        Box::new(open_tty()?)
     } else {
         clipboard_writer(args.output)?
     };

@@ -24,9 +24,6 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             use_cross: false
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            use_cross: false
 
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -46,18 +43,10 @@ jobs:
       - name: Build
         run: ${{ matrix.use_cross && 'cross' || 'cargo' }} build --release --target ${{ matrix.target }}
 
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
+      - name: Package
         run: |
           cd target/${{ matrix.target }}/release
           tar czf ../../../termcopy-${{ github.ref_name }}-${{ matrix.target }}.tar.gz termcopy
-          cd ../../..
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd target/${{ matrix.target }}/release
-          Compress-Archive -Path termcopy.exe -DestinationPath ../../../termcopy-${{ github.ref_name }}-${{ matrix.target }}.zip
           cd ../../..
 
       - name: Upload artifact

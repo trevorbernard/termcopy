@@ -17,9 +17,8 @@ Download the archive for your platform from the [latest release](https://github.
 | Linux x86_64 (static) | `termcopy-<version>-x86_64-unknown-linux-musl.tar.gz` |
 | Linux aarch64 (static) | `termcopy-<version>-aarch64-unknown-linux-musl.tar.gz` |
 | macOS Apple Silicon | `termcopy-<version>-aarch64-apple-darwin.tar.gz` |
-| Windows x86_64 | `termcopy-<version>-x86_64-pc-windows-msvc.zip` |
 
-On Linux and macOS:
+Install:
 
 ```bash
 VERSION=v0.2.0
@@ -38,8 +37,6 @@ Release archives also carry signed build provenance; with the [GitHub CLI](https
 ```bash
 gh attestation verify "termcopy-${VERSION}-${TARGET}.tar.gz" --repo trevorbernard/termcopy
 ```
-
-On Windows, extract the `.zip` and place `termcopy.exe` somewhere on your `PATH`.
 
 #### From source
 

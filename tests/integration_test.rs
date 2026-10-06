@@ -74,3 +74,27 @@ fn test_tee_rejects_output_stdout() {
     let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
     assert!(stderr.contains("--tee"));
 }
+
+#[test]
+fn test_read_error_emits_no_partial_sequence() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = termcopy()
+        .args(["--output", "stdout"])
+        .arg(dir.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn test_missing_file_error_names_path() {
+    let output = termcopy()
+        .args(["--output", "stdout", "/nonexistent/termcopy-input"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8");
+    assert!(stderr.contains("/nonexistent/termcopy-input"));
+    assert!(!stderr.contains("Os {"));
+}
